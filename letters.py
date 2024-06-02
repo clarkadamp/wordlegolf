@@ -1,7 +1,7 @@
 import random
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import Callable, Iterable, Mapping, Sequence, Tuple
+from typing import Callable, Iterable, List, Mapping, Sequence, Tuple
 
 LetterGernerator = Callable[[bool], Iterable[Tuple[str, str]]]
 
@@ -10,7 +10,7 @@ all_letters = list(map(chr, range(ord("a"), ord("z") + 1)))
 GENERATORS: Mapping[str, LetterGernerator] = {}
 
 
-def random_letters() -> Sequence[str]:
+def random_letters() -> List[str]:
     letters = all_letters.copy()
     random.shuffle(letters)
     return letters
@@ -51,6 +51,17 @@ def full_random(allow_same: bool) -> Iterable[Tuple[str, str]]:
         if not allow_same and daily == bonus:
             continue
         yield daily, bonus
+
+
+@generator
+def last_bonus_is_lotd(allow_same: bool) -> Iterable[Tuple[str, str]]:
+    letters = random_letters()
+    daily = letters.pop()
+    bonus = letters.pop()
+    while True:
+        yield daily, bonus
+        daily = bonus
+        bonus = letters.pop()
 
 
 def parse_args() -> Namespace:
