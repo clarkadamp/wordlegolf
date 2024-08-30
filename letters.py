@@ -224,8 +224,6 @@ class LotdBonusExist:
                 continue
 
             first, last = word[0], word[-1]
-            # if first == last:
-            #     breakpoint()
 
             if self.only_same_letters:
                 if first != last:
