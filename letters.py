@@ -2,15 +2,29 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 import random
 import re
+import string
 import sys
 import urllib.request
 from argparse import ArgumentParser
 from collections import defaultdict
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
-from typing import Iterable, List, MutableMapping, NamedTuple, Optional, Protocol, Type
+from typing import (
+    Iterable,
+    List,
+    MutableMapping,
+    NamedTuple,
+    Optional,
+    Protocol,
+    Type,
+    TypedDict,
+    cast,
+)
 
 WORDLE_WORD_LENGTH = 5
 GENERATORS: MutableMapping[str, Type[Generator]] = {}
@@ -287,6 +301,141 @@ class LotdBonusExist:
             print(f"{self.words_source} is not a valid url or file")
             exit(1)
         return [word for word in contents.split("\n") if word]
+
+
+@dataclass
+class LetterPack:
+    letters: MutableMapping[str, Letter]
+    expand_factor: int
+
+    def choose(self, remove: bool) -> Letter:
+        expanded_letters: List[str] = []
+        for _letter in self.letters.values():
+            expanded_letters.extend(
+                [_letter.value] * int(_letter.probability * self.expand_factor)
+            )
+        random.shuffle(expanded_letters)
+        chosen = expanded_letters[0]
+        if remove:
+            return self.letters.pop(chosen)
+        return self.letters[chosen]
+
+
+@dataclass
+class Letter:
+    value: str
+    probability: float
+    next_letters: Optional[LetterPack]
+
+
+class StatsRow(TypedDict):
+    letter: str
+    count: str  # int
+    obsProb: str  # float
+    last_a: str  # float
+    last_b: str  # float
+    last_c: str  # float
+    last_d: str  # float
+    last_e: str  # float
+    last_f: str  # float
+    last_g: str  # float
+    last_h: str  # float
+    last_i: str  # float
+    last_j: str  # float
+    last_k: str  # float
+    last_l: str  # float
+    last_m: str  # float
+    last_n: str  # float
+    last_o: str  # float
+    last_p: str  # float
+    last_q: str  # float
+    last_r: str  # float
+    last_s: str  # float
+    last_t: str  # float
+    last_u: str  # float
+    last_v: str  # float
+    last_w: str  # float
+    last_x: str  # float
+    last_y: str  # float
+    last_z: str  # float
+
+
+@generator
+class StatsDriven:
+
+    def __init__(
+        self, data_file: Path, allow_same: bool, allow_duplicate_letters: bool
+    ) -> None:
+        self.data_file = data_file
+        self.expand_factor = 10000
+        self.allow_duplicate_letters = allow_same
+        self.allow_same = allow_duplicate_letters
+
+    @classmethod
+    def add_subcommand(cls, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--data-file",
+            default="data/WordleGolfBetterProbs.csv",
+            help="Location of a letter distribution file",
+            type=Path,
+            metavar="FILE",
+        )
+        parser.add_argument(
+            "--allow-same",
+            action="store_true",
+            default=False,
+            help="Allow daily letters to be the same",
+        )
+        parser.add_argument(
+            "--allow-duplicate-letters",
+            action="store_true",
+            default=False,
+            help="Allow LOTD and bonus letter repeats",
+        )
+
+    def generate_letters(self) -> Iterable[Letters]:
+        """Actually generate the letter sequence"""
+        while True:
+            lotd = self.pack.choose(remove=not self.allow_duplicate_letters)
+            assert lotd.next_letters is not None
+            bonus = lotd.next_letters.choose(remove=not self.allow_duplicate_letters)
+            if not self.allow_same and lotd.value == bonus.value:
+                continue
+            yield Letters(
+                lotd.value,
+                bonus.value,
+                f"Probs: lotd: {lotd.probability*100:.2f} , bonus: {bonus.probability*100:.2f}",
+            )
+
+    @cached_property
+    def pack(self) -> LetterPack:
+        with open(self.data_file) as csvfile:
+            return to_letter_pack(
+                [cast(StatsRow, row) for row in csv.DictReader(csvfile)],
+                self.expand_factor,
+            )
+
+
+def to_letter_pack(rows: List[StatsRow], expand_factor: int) -> LetterPack:
+    pack = LetterPack(letters={}, expand_factor=expand_factor)
+    for row in rows:
+        letter = Letter(
+            value=row["letter"],
+            probability=float(row["obsProb"]),
+            next_letters=LetterPack(
+                letters={
+                    _letter: Letter(
+                        value=_letter,
+                        probability=float(row[f"last_{_letter}"]),
+                        next_letters=None,
+                    )
+                    for _letter in string.ascii_lowercase
+                },
+                expand_factor=expand_factor,
+            ),
+        )
+        pack.letters[letter.value] = letter
+    return pack
 
 
 def random_letters() -> List[str]:
