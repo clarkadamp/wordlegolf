@@ -34,7 +34,6 @@ logger = logging.getLogger("letters")
 
 
 class Generator(Protocol):
-
     @classmethod
     def add_subcommand(cls, parser: ArgumentParser) -> None:
         """Add subcommand and generator specific options"""
@@ -230,7 +229,6 @@ class LotdBonusExist:
         )
 
     def generate_letters(self) -> Iterable[Letters]:
-
         # Grab first and last letter, count occurances
         letter_sets = defaultdict(int)
         for word in self.words():
@@ -362,14 +360,13 @@ class StatsRow(TypedDict):
 
 @generator
 class StatsDriven:
-
     def __init__(
         self, data_file: Path, allow_same: bool, allow_duplicate_letters: bool
     ) -> None:
         self.data_file = data_file
         self.expand_factor = 10000
-        self.allow_duplicate_letters = allow_same
-        self.allow_same = allow_duplicate_letters
+        self.allow_duplicate_letters = allow_duplicate_letters
+        self.allow_same = allow_same
 
     @classmethod
     def add_subcommand(cls, parser: ArgumentParser) -> None:
