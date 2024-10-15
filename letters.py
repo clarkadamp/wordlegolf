@@ -361,18 +361,23 @@ class StatsRow(TypedDict):
 @generator
 class StatsDriven:
     def __init__(
-        self, data_file: Path, allow_same: bool, allow_duplicate_letters: bool
+        self,
+        data_file: Path,
+        allow_same: bool,
+        allow_duplicate_letters: bool,
+        no_repeat_bonus_for: int,
     ) -> None:
         self.data_file = data_file
         self.expand_factor = 10000
         self.allow_duplicate_letters = allow_duplicate_letters
         self.allow_same = allow_same
+        self.no_repeat_bonus_for = no_repeat_bonus_for
 
     @classmethod
     def add_subcommand(cls, parser: ArgumentParser) -> None:
         parser.add_argument(
             "--data-file",
-            default="data/WordleGolfBetterProbs.csv",
+            default=f"{Path(sys.argv[0]).parent.as_posix()}/data/WordleGolfBetterProbs.csv",
             help="Location of a letter distribution file",
             type=Path,
             metavar="FILE",
@@ -389,15 +394,29 @@ class StatsDriven:
             default=False,
             help="Allow LOTD and bonus letter repeats",
         )
+        parser.add_argument(
+            "--no-repeat-bonus-for",
+            type=int,
+            default=5,
+            help="Holes between a given bonus letter",
+        )
 
     def generate_letters(self) -> Iterable[Letters]:
         """Actually generate the letter sequence"""
         while True:
             lotd = self.pack.choose(remove=not self.allow_duplicate_letters)
             assert lotd.next_letters is not None
-            bonus = lotd.next_letters.choose(remove=not self.allow_duplicate_letters)
-            if not self.allow_same and lotd.value == bonus.value:
-                continue
+            previous_bonus = []
+            while True:
+                bonus = lotd.next_letters.choose(
+                    remove=not self.allow_duplicate_letters
+                )
+                if not self.allow_same and lotd.value == bonus.value:
+                    continue
+                if bonus in previous_bonus[self.no_repeat_bonus_for :]:
+                    continue
+                previous_bonus.append(bonus)
+                break
             yield Letters(
                 lotd.value,
                 bonus.value,
