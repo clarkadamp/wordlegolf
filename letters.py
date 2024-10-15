@@ -306,7 +306,7 @@ class LetterPack:
     letters: MutableMapping[str, Letter]
     expand_factor: int
 
-    def choose(self, remove: bool) -> Letter:
+    def choose(self) -> Letter:
         expanded_letters: List[str] = []
         for _letter in self.letters.values():
             expanded_letters.extend(
@@ -314,9 +314,10 @@ class LetterPack:
             )
         random.shuffle(expanded_letters)
         chosen = expanded_letters[0]
-        if remove:
-            return self.letters.pop(chosen)
         return self.letters[chosen]
+
+    def remove(self, letter: Letter) -> None:
+        self.letters.pop(letter.value)
 
 
 @dataclass
@@ -372,6 +373,7 @@ class StatsDriven:
         self.allow_duplicate_letters = allow_duplicate_letters
         self.allow_same = allow_same
         self.no_repeat_bonus_for = no_repeat_bonus_for
+        self.previous_letters: List[str] = []
 
     @classmethod
     def add_subcommand(cls, parser: ArgumentParser) -> None:
@@ -397,31 +399,45 @@ class StatsDriven:
         parser.add_argument(
             "--no-repeat-bonus-for",
             type=int,
-            default=5,
-            help="Holes between a given bonus letter",
+            default=6,
+            choices=[n for n in range(13)],  # We seem to run out of letters after 12/13
+            help="Holes between a given bonus letter repeating, default is 6",
         )
 
     def generate_letters(self) -> Iterable[Letters]:
         """Actually generate the letter sequence"""
         while True:
-            lotd = self.pack.choose(remove=not self.allow_duplicate_letters)
+            # pick LOTD
+            lotd = self.pack.choose()
             assert lotd.next_letters is not None
-            previous_bonus = []
+            if self.letter_previously_used(lotd):
+                continue
+
+            # pick Bonus
             while True:
-                bonus = lotd.next_letters.choose(
-                    remove=not self.allow_duplicate_letters
-                )
+                bonus = lotd.next_letters.choose()
                 if not self.allow_same and lotd.value == bonus.value:
                     continue
-                if bonus in previous_bonus[self.no_repeat_bonus_for :]:
+                if self.letter_previously_used(bonus):
                     continue
-                previous_bonus.append(bonus)
                 break
+
+            self.previous_letters.append(lotd.value)
+            self.previous_letters.append(bonus.value)
+
+            if not self.allow_duplicate_letters:
+                self.pack.remove(lotd)
+
+            # Yield hole letters
             yield Letters(
                 lotd.value,
                 bonus.value,
                 f"Probs: lotd: {lotd.probability*100:.2f} , bonus: {bonus.probability*100:.2f}",
             )
+
+    def letter_previously_used(self, letter: Letter) -> bool:
+        # Look back a multiple of holes (2 letters)
+        return letter.value in self.previous_letters[-self.no_repeat_bonus_for * 2 :]
 
     @cached_property
     def pack(self) -> LetterPack:
