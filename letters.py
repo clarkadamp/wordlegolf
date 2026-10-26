@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
 import random
 import re
 import string
@@ -379,7 +380,10 @@ class StatsDriven:
     def add_subcommand(cls, parser: ArgumentParser) -> None:
         parser.add_argument(
             "--data-file",
-            default=f"{Path(sys.argv[0]).parent.as_posix()}/data/WordleGolfBetterProbs.csv",
+            default=os.environ.get(
+                "STATS_FILE",
+                f"{Path(sys.argv[0]).parent.as_posix()}/data/WordleGolfBetterProbs.csv",
+            ),
             help="Location of a letter distribution file",
             type=Path,
             metavar="FILE",
